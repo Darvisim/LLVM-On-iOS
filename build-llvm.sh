@@ -201,7 +201,7 @@ build_llvm() {
         "maccatalyst"|"maccatalyst-arm64")
             llvmCmakeArgs+=(-DCMAKE_OSX_SYSROOT=$(xcodebuild -version -sdk macosx Path) \
                 -DCMAKE_C_FLAGS="-target ${targetArch}-apple-ios14.0-macabi" \
-                -DCMAKE_CXX_FLAGS="-target ${targetArch}-apple-ios14.0-macabi";;
+                -DCMAKE_CXX_FLAGS="-target ${targetArch}-apple-ios14.0-macabi"
 
         *)
             echo "Unknown or missing platform!"
