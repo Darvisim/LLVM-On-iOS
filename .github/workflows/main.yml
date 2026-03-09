@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - &checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: brew install ninja
@@ -29,7 +29,7 @@ jobs:
       - name: Compress artifact
         run: tar -cJf libffi-${{ matrix.platformArch }}.tar.xz libffi-${{ matrix.platformArch }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: &upload actions/upload-artifact@v4
         with:
           name: libffi-${{ matrix.platformArch }}
           path: libffi-${{ matrix.platformArch }}.tar.xz
@@ -48,7 +48,7 @@ jobs:
     steps:
       - *checkout
 
-      - uses: actions/download-artifact@v3
+      - uses: &download actions/download-artifact@v4
         with:
           path: artifacts
 
@@ -59,7 +59,7 @@ jobs:
           done
 
       - name: Cache Homebrew
-        uses: actions/cache@v3
+        uses: &cache actions/cache@v4
         with:
           path: |
            ~/Library/Caches/Homebrew
@@ -71,7 +71,7 @@ jobs:
         run: brew install ninja
 
       - name: Cache LLVM build
-        uses: actions/cache@v3
+        uses: *cache
         with:
           path: LLVM-${{ matrix.platformArch }}
           key: llvm-${{ matrix.platformArch }}-${{ hashFiles('build-llvm.sh') }}
@@ -84,7 +84,7 @@ jobs:
       - name: Compress LLVM
         run: tar -cJf LLVM-${{ matrix.platformArch }}.tar.xz LLVM-${{ matrix.platformArch }}
 
-      - uses: actions/upload-artifact@v3
+      - *upload
         with:
           name: LLVM-${{ matrix.platformArch }}
           path: LLVM-${{ matrix.platformArch }}.tar.xz
@@ -96,7 +96,7 @@ jobs:
     steps:
       - *checkout
 
-      - uses: actions/download-artifact@v3
+      - *download
         with:
           path: artifacts
 
@@ -114,12 +114,12 @@ jobs:
       - name: Package Intel XCFramework
         run: tar -cJf LLVM_Intel.xcframework.tar.xz LLVM.xcframework
 
-      - uses: actions/upload-artifact@v3
+      - *upload
         with:
           name: LLVM_Intel
           path: LLVM_Intel.xcframework.tar.xz
 
-      - uses: actions/upload-artifact@v3
+      - *upload
         with:
           name: libclang
           path: libclang.tar.xz
@@ -133,7 +133,7 @@ jobs:
       - name: Package Apple Silicon XCFramework
         run: tar -cJf LLVM_M1.xcframework.tar.xz LLVM.xcframework
 
-      - uses: actions/upload-artifact@v3
+      - *upload
         with:
           name: LLVM_M1
           path: LLVM_M1.xcframework.tar.xz
