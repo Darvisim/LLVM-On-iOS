@@ -1,9 +1,12 @@
 # Build LLVM XCFramework
+set -euo pipefail
 #
 # We assume that all required build tools (CMake, ninja, etc.) are either installed and accessible in $PATH.
 
 # Assume that this script is source'd at this repo root
-export REPO_ROOT=`pwd`
+export REPO_ROOT=$(pwd)
+
+LLVM_VERSION=15.0.6
 
 ### Setup the environment variable $targetBasePlatform and $targetArch from the platform-architecture string
 ### Argument: the platform-architecture string, must be one of the following
@@ -55,10 +58,20 @@ build_libffi() {
     local libffiReleaseUrl=https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz
     # test -d libffi || git clone https://github.com/libffi/libffi.git
     # curl -L -o libffi.tar.gz $libffiReleaseSrcArchive
-    curl -L -o libffi.tar.gz $libffiReleaseUrl
-    tar xzf libffi.tar.gz
-    mv libffi-3.4.4 libffi
+    if [ ! -d libffi ]; then
+      curl -L -o libffi.tar.gz $libffiReleaseUrl
+      tar xzf libffi.tar.gz
+      mv libffi-3.4.4 libffi
+    fi
     cd libffi
+
+    # Remove unsupported architectures (i386 and armv7)
+    if ! grep -q "PATCHED_FOR_MODERN_XCODE" generate-darwin-source-and-headers.py; then
+      sed -i.bak '/i386/d' generate-darwin-source-and-headers.py
+      sed -i.bak '/armv7/d' generate-darwin-source-and-headers.py
+      sed -i.bak '/armv7s/d' generate-darwin-source-and-headers.py
+      echo "# PATCHED_FOR_MODERN_XCODE" >> generate-darwin-source-and-headers.py
+    fi
 
     # Imitate libffi continuous integration .ci/build.sh script
     # Note that we do not need to run autogen if we are using the 'release' $libffiReleaseUrl as libffi dev already
@@ -88,7 +101,7 @@ build_libffi() {
     # The first run generates necessary headers whereas the second run actually compiles the library
     local libffiBuildDir=$REPO_ROOT/libffi
     for r in {1..2}; do
-        xcodebuild -scheme libffi-iOS "${xcodeSdkArgs[@]}" -configuration Release SYMROOT="$libffiBuildDir" # >/dev/null 2>/dev/null
+        xcodebuild -scheme libffi-iOS "${xcodeSdkArgs[@]:-}" -configuration Release SYMROOT="$libffiBuildDir" # >/dev/null 2>/dev/null
     done
 
     local libffiInstallDir=$libffiBuildDir/Release-$targetBasePlatform
@@ -99,9 +112,11 @@ build_libffi() {
 get_llvm_src() {
     #git clone --single-branch --branch release/14.x https://github.com/llvm/llvm-project.git
 
-    curl -OL https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.6/llvm-project-15.0.6.src.tar.xz
-    tar xzf llvm-project-15.0.6.src.tar.xz
-    mv llvm-project-15.0.6.src llvm-project
+    if [ ! -d llvm-project ]; then
+        curl -OL https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/llvm-project-${LLVM_VERSION}.src.tar.xz
+        tar xJf llvm-project-${LLVM_VERSION}.src.tar.xz
+        mv llvm-project-${LLVM_VERSION}.src llvm-project
+    fi
 }
 
 ### Prepare the LLVM built for usage in Xcode
@@ -169,6 +184,7 @@ build_llvm() {
         -DLLVM_ENABLE_TERMINFO=OFF \
         -DLLVM_ENABLE_FFI=ON \
         -DLLVM_DISABLE_ASSEMBLY_FILES=ON \
+        -DLLVM_ENABLE_PIC=OFF \
         -DFFI_INCLUDE_DIR=$libffiInstallDir/include/ffi \
         -DFFI_LIBRARY_DIR=$libffiInstallDir \
         -DCMAKE_BUILD_TYPE=Release \
@@ -184,15 +200,18 @@ build_llvm() {
 
         "maccatalyst"|"maccatalyst-arm64")
             llvmCmakeArgs+=(-DCMAKE_OSX_SYSROOT=$(xcodebuild -version -sdk macosx Path) \
-                -DCMAKE_C_FLAGS="-target $targetArch-apple-ios14.1-macabi" \
-                -DCMAKE_CXX_FLAGS="-target $targetArch-apple-ios14.1-macabi");;
+                -DCMAKE_C_FLAGS="-target ${targetArch}-apple-ios14.0-macabi" \
+                -DCMAKE_CXX_FLAGS="-target ${targetArch}-apple-ios14.0-macabi";;
 
         *)
             echo "Unknown or missing platform!"
             exit 1;;
     esac
 
-    llvmCmakeArgs+=(-DCMAKE_OSX_ARCHITECTURES=$targetArch)
+    llvmCmakeArgs+=(
+       -DCMAKE_OSX_SYSROOT=$(xcrun --sdk $targetBasePlatform --show-sdk-path)
+       -DCMAKE_OSX_ARCHITECTURES=$targetArch
+    )
 
     # https://www.shell-tips.com/bash/arrays/
     # https://www.lukeshu.com/blog/bash-arrays.html
@@ -209,10 +228,10 @@ build_llvm() {
     # When building for real iOS device, we need to open `build_ios/CMakeCache.txt` at this point, search for and FORCIBLY change the value of **HAVE_FFI_CALL** to **1**.
     # For some reason, CMake did not manage to determine that `ffi_call` was available even though it really is the case.
     # Without this, the execution engine is not built with libffi at all.
-    sed -i.bak 's/^HAVE_FFI_CALL:INTERNAL=/HAVE_FFI_CALL:INTERNAL=1/g' CMakeCache.txt
+    sed -i.bak 's/^HAVE_FFI_CALL:INTERNAL=.*/HAVE_FFI_CALL:INTERNAL=1/' CMakeCache.txt
 
     # Build and install
-    cmake --build . --target install # >/dev/null 2>/dev/null
+    cmake --build . --target install --parallel $(getconf _NPROCESSORS_ONLN) # >/dev/null 2>/dev/null
 
     prepare_llvm $targetPlatformArch
 }
@@ -228,7 +247,10 @@ create_xcframework() {
         xcodebuildCreateXCFArgs+=(-library LLVM-$p/llvm.a -headers LLVM-$p/include)
 
         cd $REPO_ROOT
-        test -f libclang.tar.xz || echo "Create clang support headers archive" && tar -cJf libclang.tar.xz LLVM-$p/lib/clang/
+        if [ ! -f libclang.tar.xz ]; then
+          echo "Create clang support headers archive"
+          tar -cJf libclang.tar.xz LLVM-$p/lib/clang/
+        fi
     done
 
     echo "Create XC framework with arguments ${xcodebuildCreateXCFArgs[@]}"
