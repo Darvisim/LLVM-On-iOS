@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-libffi:
-    runs-on: &macos_runner macos-13
+    runs-on: macos-13
     strategy:
       fail-fast: false
       matrix:
@@ -35,7 +35,7 @@ jobs:
 
   build-llvm:
     needs: build-libffi
-    runs-on: *macos_runner
+    runs-on: macos-13
 
     strategy:
       fail-fast: false
@@ -90,7 +90,7 @@ jobs:
 
   create-xcframework:
     needs: build-llvm
-    runs-on: *macos_runner
+    runs-on: macos-13
 
     steps:
       - *checkout
