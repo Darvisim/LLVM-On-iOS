@@ -15,8 +15,7 @@ jobs:
         platformArch: [iphoneos, iphonesimulator, iphonesimulator-arm64, maccatalyst, maccatalyst-arm64]
 
     steps:
-      - &checkout
-        uses: actions/checkout@v4
+      - uses: &checkout actions/checkout@v4
 
       - name: Install dependencies
         run: brew install ninja
