@@ -2,13 +2,12 @@ name: Build LLVM XCFrameworks
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 jobs:
   build-libffi:
-    runs-on:
-      macos-13
+    runs-on: &macos_runner macos-13
       
     strategy:
       fail-fast: false
@@ -37,8 +36,7 @@ jobs:
 
   build-llvm:
     needs: build-libffi
-    runs-on:
-      macos-13
+    runs-on: *macos_runner
 
     strategy:
       fail-fast: false
@@ -93,8 +91,7 @@ jobs:
 
   create-xcframework:
     needs: build-llvm
-    runs-on:
-      macos-13
+    runs-on: *macos_runner
 
     steps:
       - *checkout
