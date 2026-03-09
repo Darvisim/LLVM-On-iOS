@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 1200
 
     steps:
-      - *checkout
+      - uses: *checkout
 
       - uses: &download actions/download-artifact@v4
         with:
@@ -83,7 +83,7 @@ jobs:
       - name: Compress LLVM
         run: tar -cJf LLVM-${{ matrix.platformArch }}.tar.xz LLVM-${{ matrix.platformArch }}
 
-      - *upload
+      - uses: *upload
         with:
           name: LLVM-${{ matrix.platformArch }}
           path: LLVM-${{ matrix.platformArch }}.tar.xz
@@ -93,9 +93,9 @@ jobs:
     runs-on: *macos_runner
 
     steps:
-      - *checkout
+      - uses: *checkout
 
-      - *download
+      - uses: *download
         with:
           path: artifacts
 
@@ -113,12 +113,12 @@ jobs:
       - name: Package Intel XCFramework
         run: tar -cJf LLVM_Intel.xcframework.tar.xz LLVM.xcframework
 
-      - *upload
+      - uses: *upload
         with:
           name: LLVM_Intel
           path: LLVM_Intel.xcframework.tar.xz
 
-      - *upload
+      - uses: *upload
         with:
           name: libclang
           path: libclang.tar.xz
@@ -132,7 +132,7 @@ jobs:
       - name: Package Apple Silicon XCFramework
         run: tar -cJf LLVM_M1.xcframework.tar.xz LLVM.xcframework
 
-      - *upload
+      - uses: *upload
         with:
           name: LLVM_M1
           path: LLVM_M1.xcframework.tar.xz
