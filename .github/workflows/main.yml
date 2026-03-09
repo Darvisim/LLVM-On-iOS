@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-libffi:
-    runs-on: &macos_runner macos-latest
+    runs-on: &macos_runner macos-15
       
     strategy:
       fail-fast: false
